@@ -3,6 +3,7 @@ module bindbc.onnxruntime.v12.bind;
 import bindbc.loader;
 import bindbc.onnxruntime.config;
 import bindbc.onnxruntime.v12.types;
+import std.meta;
 
 version (BindONNXRuntime_Static)
 {
@@ -10,49 +11,47 @@ version (BindONNXRuntime_Static)
 
     version (WITH_CUDA)
     {
-        OrtStatus* OrtSessionOptionsAppendExecutionProvider_CUDA(OrtSessionOptions* options, int device_id);
         OrtStatus* OrtSessionOptionsAppendExecutionProvider_CPU(OrtSessionOptions* options, int use_arena);
+        OrtStatus* OrtSessionOptionsAppendExecutionProvider_CUDA(OrtSessionOptions* options, int device_id);
+        OrtStatus* OrtSessionOptionsAppendExecutionProvider_Tensorrt(OrtSessionOptions* options, int device_id);
     }
 }
 else
 {
     private __gshared SharedLib lib;
-    private __gshared ONNXRuntimeSupport loadedVersion;
 
 extern (C) @nogc nothrow:
 
-    __gshared const(OrtApiBase)* function() OrtGetApiBase;
-    version (WITH_CUDA)
-    {
-        __gshared OrtStatus* function(OrtSessionOptions* options, int device_id) OrtSessionOptionsAppendExecutionProvider_CUDA;
-        __gshared OrtStatus* function(OrtSessionOptions* options, int use_arena) OrtSessionOptionsAppendExecutionProvider_CPU;
+    __gshared {
+        private ONNXRuntimeSupport loadedVersion;
+        const(OrtApiBase)* function() OrtGetApiBase;
+        version (WITH_CUDA)
+        {
+            OrtStatus* function(OrtSessionOptions* options, int use_arena) OrtSessionOptionsAppendExecutionProvider_CPU;
+            OrtStatus* function(OrtSessionOptions* options, int device_id) OrtSessionOptionsAppendExecutionProvider_CUDA;
+            OrtStatus* function(OrtSessionOptions* options, int device_id) OrtSessionOptionsAppendExecutionProvider_Tensorrt;
+        }
     }
 
-    ONNXRuntimeSupport loadedONNXVersion()
-    {
-        return loadedVersion;
-    }
+    ONNXRuntimeSupport loadedONNXVersion() => loadedVersion;
 
-    bool isONNXLoaded()
-    {
-        return lib != invalidHandle;
-    }
+    bool isONNXLoaded() => lib != invalidHandle;
 
     ONNXRuntimeSupport loadONNXRuntime()
     {
         version (Windows)
         {
-            const(char)[][1] libNames = ["onnxruntime.dll"];
+            const(char)*[1] libNames = ["onnxruntime.dll"];
         }
         else version (OSX)
         {
-            const(char)[][2] libNames = [
+            const(char)*[2] libNames = [
                 "libonnxruntime.dylib", "libonnxruntime.1.2.0.dylib"
             ];
         }
         else version (Posix)
         {
-            const(char)[][2] libNames = ["onnxruntime.so", "onnxruntime.so.1.2"];
+            const(char)*[2] libNames = ["onnxruntime.so", "onnxruntime.so.1.2"];
         }
         else
             static assert(false,
@@ -61,7 +60,7 @@ extern (C) @nogc nothrow:
         ONNXRuntimeSupport ret;
         foreach (libName; libNames)
         {
-            ret = loadONNXRuntimeByLibName(libName.ptr);
+            ret = loadONNXRuntimeByLibName(libName);
             if (ret != ONNXRuntimeSupport.noLibrary)
             {
                 return ret;
@@ -85,8 +84,13 @@ extern (C) @nogc nothrow:
         lib.bindSymbol(cast(void**)&OrtGetApiBase, "OrtGetApiBase");
         version (WITH_CUDA)
         {
-            lib.bindSymbol(cast(void**)&OrtSessionOptionsAppendExecutionProvider_CUDA, "OrtSessionOptionsAppendExecutionProvider_CUDA");
-            lib.bindSymbol(cast(void**)&OrtSessionOptionsAppendExecutionProvider_CPU, "OrtSessionOptionsAppendExecutionProvider_CPU");
+            foreach (alias f; AliasSeq!(
+                OrtSessionOptionsAppendExecutionProvider_CPU,
+                OrtSessionOptionsAppendExecutionProvider_CUDA,
+                OrtSessionOptionsAppendExecutionProvider_Tensorrt))
+            {
+                lib.bindSymbol(cast(void**)&f, f.stringof);
+            }
         }
 
         if (errCount != errorCount())

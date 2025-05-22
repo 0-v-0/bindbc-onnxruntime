@@ -2,7 +2,7 @@ module bindbc.onnxruntime.v12.types;
 
 import core.stdc.stddef;
 
-extern (C):
+extern (C) @nogc nothrow:
 
 // This value is used in structures passed to ORT so that a newer version of ORT will still work with them
 enum ORT_API_VERSION = 2;
@@ -104,6 +104,7 @@ struct OrtModelMetadata;
 // is not destroyed until the last allocated object using it is freed.
 struct OrtAllocator
 {
+@nogc nothrow:
     uint version_; // Initialize to ORT_API_VERSION
     void* function(OrtAllocator* this_, size_t size) Alloc;
     void function(OrtAllocator* this_, void* p) Free;
@@ -155,6 +156,7 @@ enum OrtMemType
 
 struct OrtApiBase
 {
+@nogc nothrow:
     const(OrtApi)* function(uint version_) GetApi; // Pass in ORT_API_VERSION
     // nullptr will be returned if the version is unsupported, for example when using a runtime older than this header file
 
@@ -163,6 +165,7 @@ struct OrtApiBase
 
 struct OrtApi
 {
+@nogc nothrow:
     /**
     * \param msg A null-terminated string. Its content will be copied into the newly created OrtStatus
     */
@@ -701,6 +704,7 @@ alias OrtCustomOpApi = OrtApi;
 */
 struct OrtCustomOp
 {
+@nogc nothrow:
     uint version_; // Initialize to ORT_API_VERSION
 
     // This callback creates the kernel, which is a user defined parameter that is passed to the Kernel* callbacks below.
